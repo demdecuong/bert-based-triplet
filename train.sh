@@ -1,0 +1,1 @@
+python train.py --epochs 15 --batch_size 64 --clip 1.0 --lr 1e-2 --embed_dim 100
