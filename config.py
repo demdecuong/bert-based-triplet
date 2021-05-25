@@ -84,6 +84,7 @@ def get_config(parse=True, **optional_kwargs):
     parser.add_argument('--val_dir', default='./data/test_stroke.csv')
     parser.add_argument('--save_dir', default='./ckpt/')
     parser.add_argument('--log_dir', default='./log/log.txt')
+    parser.add_argument('--model_path', default='./ckpt/best_model_state_v1_triplet.bin')
     
     parser.add_argument('--train_threshold', default=0.5)
     parser.add_argument('--val_threshold', default=0.5)
