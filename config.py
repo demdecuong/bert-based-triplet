@@ -64,8 +64,8 @@ def get_config(parse=True, **optional_kwargs):
     parser.add_argument('--max_len', type=int, default=40,
                         help='gradient clip norm')
     
-    parser.add_argument('--optim', type=str, default='adam',
-                        choices=['adam', 'amsgrad', 'adagrad'],
+    parser.add_argument('--optim', type=str, default='adamw',
+                        choices=['adam', 'amsgrad', 'adagrad','adamw'],
                         help='optimizer')
     parser.add_argument('--loss_fn', type=str, default='triplet',
                         choices=['triplet', 'cosine', 'custom_triplet'],
@@ -73,6 +73,7 @@ def get_config(parse=True, **optional_kwargs):
     parser.add_argument('--dropout', type=float, default=0.2)
     parser.add_argument('--embed_dim', type=int, default=100)
     parser.add_argument('--freeze', type=bool, default=False)
+    parser.add_argument('--space_joiner', type=bool, default=True)
 
     parser.add_argument('--seed', type=int, default=2804,
                         help='Random seed')

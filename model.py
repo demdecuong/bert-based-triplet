@@ -17,13 +17,17 @@ class JointSpace(nn.Module):
 
 
 class SimilarityClassifier(nn.Module):
-    def __init__(self, PRE_TRAINED_MODEL_NAME, embed_dim, dropout_p, freeze=False):
+    def __init__(self, PRE_TRAINED_MODEL_NAME, embed_dim, dropout_p, freeze=False, space_joiner = True):
         super(SimilarityClassifier, self).__init__()
         # self.bert = DistilBertModel.from_pretrained(PRE_TRAINED_MODEL_NAME)
         self.bert = AutoModel.from_pretrained(PRE_TRAINED_MODEL_NAME)
         self.drop = nn.Dropout(p=0.3)
         self.sigmoid = nn.Sigmoid()
-        self.space_joiner = JointSpace(self.bert.config.hidden_size, embed_dim)
+        self.space_joiner = space_joiner
+        if space_joiner:
+            self.space_joiner = JointSpace(self.bert.config.hidden_size, embed_dim)
+        else:
+            assert embed_dim == 768
         if freeze:
             for p in self.bert.parameters():
                 p.requires_grad = False
@@ -34,12 +38,12 @@ class SimilarityClassifier(nn.Module):
             attention_mask=attention_mask
         )[0]
         bert_output = torch.mean(bert_output, dim=1)
-        output = self.drop(bert_output)
-        out = self.space_joiner(output)
-        # return self.sigmoid(out)
+        out = self.drop(bert_output)
+        if self.space_joiner:
+            out = self.space_joiner(out)
 
         return out
 
 def get_model(config):
-    model = SimilarityClassifier(config.PRE_TRAINED_MODEL_NAME, config.embed_dim, config.dropout,config.freeze)
+    model = SimilarityClassifier(config.PRE_TRAINED_MODEL_NAME, config.embed_dim, config.dropout,config.freeze,config.space_joiner)
     return model

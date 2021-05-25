@@ -21,8 +21,9 @@ from config import get_config
 from loss_function import CosineLoss, QuadrupletLoss, TripletLoss
 from model import get_model
 
-def train_epoch(model, data_loader, loss_fn, optimizer, device, config, textwriter):
-    model = model.train()
+def train_epoch(model_anchor, model_pos_neg, data_loader, loss_fn, optimizer_a, optimizer_pn, device, config, textwriter):
+    model_anchor.train()
+    model_pos_neg.train()
     losses = []
 
     for step, batch in enumerate(data_loader):
@@ -30,7 +31,7 @@ def train_epoch(model, data_loader, loss_fn, optimizer, device, config, textwrit
         anchor_ids = batch["anchor_ids"].to(device)
         anchor_attention_mask = batch["anchor_attention_mask"].to(device)
 
-        anchor_outputs = model(
+        anchor_outputs = model_anchor(
             input_ids=anchor_ids,
             attention_mask=anchor_attention_mask
         )
@@ -38,7 +39,7 @@ def train_epoch(model, data_loader, loss_fn, optimizer, device, config, textwrit
         positive_ids = batch["positive_ids"].to(device)
         positive_attention_mask = batch["positive_attention_mask"].to(device)
 
-        positive_outputs = model(
+        positive_outputs = model_pos_neg(
             input_ids=positive_ids,
             attention_mask=positive_attention_mask
         )
@@ -46,7 +47,7 @@ def train_epoch(model, data_loader, loss_fn, optimizer, device, config, textwrit
         negative_ids = batch["negative_ids"].to(device)
         negative_attention_mask = batch["negative_attention_mask"].to(device)
 
-        negative_outputs = model(
+        negative_outputs = model_pos_neg(
             input_ids=negative_ids,
             attention_mask=negative_attention_mask
         )
@@ -55,11 +56,14 @@ def train_epoch(model, data_loader, loss_fn, optimizer, device, config, textwrit
         losses.append(loss.item())
         loss.backward()
 
-        nn.utils.clip_grad_norm_(model.parameters(), max_norm=config.clip)
+        nn.utils.clip_grad_norm_(model_anchor.parameters(), max_norm=config.clip)
+        nn.utils.clip_grad_norm_(model_pos_neg.parameters(), max_norm=config.clip)
 
-        optimizer.step()
+        optimizer_a.step()
+        optimizer_pn.step()
         # scheduler.step()
-        optimizer.zero_grad()
+        optimizer_a.zero_grad()
+        optimizer_pn.zero_grad()
 
         if step % config.print_every == 0:
             print(f"[Train] Loss at step {step} = {loss}")
@@ -67,8 +71,9 @@ def train_epoch(model, data_loader, loss_fn, optimizer, device, config, textwrit
     return np.mean(losses)
 
 
-def eval_model(model, data_loader, loss_fn, device, n_examples, config):
-    model = model.eval()
+def eval_model(model_anchor, model_pos_neg, data_loader, loss_fn, device, n_examples, config):
+    model_anchor.eval()
+    model_pos_neg.eval()
     correct_predictions = 0
     distances = []
     with torch.no_grad():
@@ -81,21 +86,21 @@ def eval_model(model, data_loader, loss_fn, device, n_examples, config):
                 device)
             targets = batch["targets"].to(device)
 
-            question1_outputs = model(
+            question1_outputs = model_anchor(
                 input_ids=question1_ids,
                 attention_mask=question1_attention_mask
             )
 
-            question2_outputs = model(
+            question2_outputs = model_pos_neg(
                 input_ids=question2_ids,
                 attention_mask=question2_attention_mask
             )
 
             distance = ((question1_outputs) - (question2_outputs)) ** 2
             distance = torch.mean(distance)
-
-            distance = torch.sum((distance < config.val_threshold).long())
             distances.append(distance.item())
+            
+            distance = torch.sum((distance < config.val_threshold).long())
 
     return distance.item() / n_examples, np.mean(distances)
 
@@ -118,25 +123,31 @@ if __name__ == '__main__':
         df_test, tokenizer, config.max_len, config.batch_size, mode='val')
 
     # model
-    model = get_model(config)
-    model = model.to(device)
+    model_anchor = get_model(config)
+    model_pos_neg = get_model(config)
+    model_anchor = model_anchor.to(device)
+    model_pos_neg = model_pos_neg.to(device)
 
     if config.optim == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
+        optimizer_a = torch.optim.Adam(model_anchor.parameters(), lr=config.lr)
+        optimizer_pn = torch.optim.Adam(model_pos_neg.parameters(), lr=config.lr)
     elif config.optim == 'amsgrad':
-        optimizer = torch.optim.Amsgrad(model.parameters(), lr=config.lr)
+        optimizer_a = torch.optim.Amsgrad(model_anchor.parameters(), lr=config.lr)
+        optimizer_pn = torch.optim.Amsgrad(model_pos_neg.parameters(), lr=config.lr)
     elif config.optim == 'adagrad':
-        optimizer = torch.optim.Adagrad(model.parameters(), lr=config.lr)
-    else:
-        optimizer = AdamW(model.parameters(), lr=config.lrr, correct_bias=True)
+        optimizer_a = torch.optim.Adagrad(model_anchor.parameters(), lr=config.lr)
+        optimizer_pn = torch.optim.Adagrad(model_pos_neg.parameters(), lr=config.lr)
+    elif config.optim == 'adamw':
+        optimizer_a = AdamW(model_anchor.parameters(), lr=config.lr, correct_bias=True)
+        optimizer_pn = AdamW(model_pos_neg.parameters(), lr=config.lr, correct_bias=True)
 
     total_steps = len(train_data_loader) * config.epochs
 
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=0,
-        num_training_steps=total_steps
-    )
+    # scheduler = get_linear_schedule_with_warmup(
+    #     optimizer,
+    #     num_warmup_steps=0,
+    #     num_training_steps=total_steps
+    # )
     
     if config.loss_fn == 'triplet':
         loss_fn = nn.TripletMarginLoss(margin=1.0, p=2)
@@ -161,10 +172,12 @@ if __name__ == '__main__':
         config.textfile.write(f"########## Epoch {epoch} ##########")
 
         train_loss = train_epoch(
-            model,
+            model_anchor,
+            model_pos_neg,
             train_data_loader,
             loss_fn,
-            optimizer,
+            optimizer_a,
+            optimizer_pn,
             device,
             config,
             config.textfile
@@ -173,7 +186,8 @@ if __name__ == '__main__':
         print(f'Train loss {train_loss}')
 
         val_acc, val_loss = eval_model(
-            model,
+            model_anchor,
+            model_pos_neg,
             test_data_loader,
             loss_fn,
             device,
@@ -190,5 +204,5 @@ if __name__ == '__main__':
 
         if val_loss < best_loss:
             print('[SAVE] Saving model ... ')
-            torch.save(model.state_dict(), ''.join(config.save_dir,'best_model_state_v1_triplet.bin'))
+            torch.save(model.state_dict(), config.save_dir + 'best_model_state_v1_triplet.bin')
             best_loss = val_loss
