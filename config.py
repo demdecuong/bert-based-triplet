@@ -90,6 +90,8 @@ def get_config(parse=True, **optional_kwargs):
     parser.add_argument('--train_threshold', default=0.5)
     parser.add_argument('--val_threshold', default=0.5)
     parser.add_argument('--print_every', default=30)
+    parser.add_argument('--use_aux', default=False)
+    parser.add_argument('--use_aug_data', default=False)
     
     if parse:
         kwargs = parser.parse_args()

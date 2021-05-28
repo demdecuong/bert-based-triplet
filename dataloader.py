@@ -166,7 +166,7 @@ def create_triplet_data_loader(df, tokenizer, max_len, batch_size, mode='train')
             shuffle=False,
         )
 
-def get_data_df(train_dir,test_dir):
+def get_data_df(train_dir,test_dir,config):
     df_test = pd.read_csv(test_dir)
     df_test['is_duplicate'] = [1] * len(df_test)
     # df_test2 = pd.read_csv('../test_final.csv')
@@ -187,8 +187,11 @@ def get_data_df(train_dir,test_dir):
     #Train data triplet
 
     df_train = pd.read_csv(train_dir)
-    df_train.dropna()
-    df_train = df_train.drop('Unnamed: 0',axis=1)
+    
+    if config.use_aug_data == True:
+      df_train2 = pd.read_csv('./data/triplet_data.csv')
+      df_train2 = df_train2.drop('Unnamed: 0',axis=1)
+      df_train = pd.concat([df_train,df_train2])
 
-    df_train.shape, df_test.shape # question1, question2, is_duplicate
+    print(df_train.shape, df_test.shape) # question1, question2, is_duplicate
     return df_train, df_test

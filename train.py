@@ -96,13 +96,13 @@ def eval_model(model_anchor, model_pos_neg, data_loader, loss_fn, device, n_exam
                 attention_mask=question2_attention_mask
             )
 
-            distance = ((question1_outputs) - (question2_outputs)) ** 2
+            distance = (question1_outputs - question2_outputs).pow(2).sum(1)
             distance = torch.mean(distance)
-            distances.append(distance.item())
+            distances.append(distance.item())   
             
             distance = torch.sum((distance < config.val_threshold).long())
 
-    return distance.item() / n_examples, np.mean(distances)
+    return distance.item() / n_examples, sum(distances) / len(distances)
 
 
 if __name__ == '__main__':
@@ -163,7 +163,7 @@ if __name__ == '__main__':
         'val_loss' : [],
     }
 
-    best_loss = 100
+    best_loss = 99999999
     config.textfile = open(config.log_dir, "w")
 
     for epoch in range(config.epochs):
@@ -204,5 +204,6 @@ if __name__ == '__main__':
 
         if val_loss < best_loss:
             print('[SAVE] Saving model ... ')
-            torch.save(model.state_dict(), config.save_dir + 'best_model_state_v1_triplet.bin')
+            torch.save(model_anchor.state_dict(), config.model_path)
+            torch.save(model_pos_neg.state_dict(), config.model_path + '_pos_neg')
             best_loss = val_loss
