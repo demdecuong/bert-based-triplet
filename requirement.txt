@@ -1,1 +1,2 @@
 transformers==2.11
+torch===1.4.0+cpu -f https://download.pytorch.org/whl/torch_stable.html

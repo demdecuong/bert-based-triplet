@@ -115,7 +115,7 @@ if __name__ == '__main__':
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # Data Loader
-    df_train , df_test = get_data_df(config.train_dir, config.val_dir)
+    df_train , df_test = get_data_df(config.train_dir, config.val_dir,config)
     tokenizer = AutoTokenizer.from_pretrained(config.PRE_TRAINED_MODEL_NAME)
     train_data_loader = create_triplet_data_loader(
         df_train, tokenizer, config.max_len, config.batch_size, mode='train')
